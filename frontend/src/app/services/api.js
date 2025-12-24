@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://booking-dashboard-7gg6.vercel.app/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
