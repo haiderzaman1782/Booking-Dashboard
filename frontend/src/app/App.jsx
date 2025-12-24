@@ -576,7 +576,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <DashboardContent />
-      <Toaster richColors closeButton position="bottom-right" />
+      <Toaster richColors closeButton />
     </ThemeProvider>
   );
 }
