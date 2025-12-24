@@ -25,6 +25,7 @@ const statusColors = {
 export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentCreated }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
   const [selectedRows, setSelectedRows] = useState(new Set());
   const [exportScope, setExportScope] = useState("all"); // "all", "filtered", "selected"
   const [showExportModal, setShowExportModal] = useState(false);
@@ -44,6 +45,41 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  // Helper function to normalize date to YYYY-MM-DD format
+  const normalizeDate = (dateValue) => {
+    if (!dateValue) return null;
+    if (typeof dateValue === 'string') {
+      const dateStr = dateValue.split('T')[0];
+      if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return dateStr;
+      }
+    }
+    try {
+      const date = new Date(dateValue);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0];
+      }
+    } catch (e) {
+      // Ignore parsing errors
+    }
+    return null;
+  };
+
+  // Helper function to get date strings for filtering
+  const getDateStrings = () => {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    return {
+      today: today.toISOString().split('T')[0],
+      yesterday: yesterday.toISOString().split('T')[0],
+      tomorrow: tomorrow.toISOString().split('T')[0],
+    };
+  };
+
   // Filter appointments
   const filteredAppointments = appointments.filter(apt => {
     const matchesSearch = 
@@ -53,7 +89,28 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
     
     const matchesStatus = statusFilter === "all" || apt.status === statusFilter;
     
-    return matchesSearch && matchesStatus;
+    // Date filtering logic
+    const matchesDate = (() => {
+      if (dateFilter === "all") return true;
+      
+      const aptDate = normalizeDate(apt.date);
+      if (!aptDate) return false;
+      
+      const dates = getDateStrings();
+      
+      switch (dateFilter) {
+        case "today":
+          return aptDate === dates.today;
+        case "yesterday":
+          return aptDate === dates.yesterday;
+        case "tomorrow":
+          return aptDate === dates.tomorrow;
+        default:
+          return true;
+      }
+    })();
+    
+    return matchesSearch && matchesStatus && matchesDate;
   });
 
   // Pagination calculations
@@ -65,7 +122,7 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter]);
+  }, [searchQuery, statusFilter, dateFilter]);
 
   // Reset to page 1 when page size changes
   useEffect(() => {
@@ -135,7 +192,7 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
     setSelectedFormat(format);
     // Allow user to choose scope in modal, but default based on current state
     const defaultScope = selectedRows.size > 0 ? "selected" : 
-      (searchQuery || statusFilter !== "all") ? "filtered" : "all";
+      (searchQuery || statusFilter !== "all" || dateFilter !== "all") ? "filtered" : "all";
     setExportScope(defaultScope);
     setShowExportModal(true);
   };
@@ -270,7 +327,7 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
                 isLoading={isExporting}
                 exportScope={exportScope}
                 hasSelectedRows={selectedRows.size > 0}
-                hasFilters={searchQuery || statusFilter !== "all"}
+                hasFilters={searchQuery || statusFilter !== "all" || dateFilter !== "all"}
               />
             </div>
           </div>
@@ -300,6 +357,18 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Select value={dateFilter} onValueChange={setDateFilter}>
+                <SelectTrigger className="w-[180px] dark:bg-gray-900 dark:border-gray-700 dark:text-white">
+                  <SelectValue placeholder="Filter by date" />
+                </SelectTrigger>
+                <SelectContent className="dark:bg-gray-900 dark:border-gray-700">
+                  <SelectItem value="all">All Dates</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="yesterday">Yesterday</SelectItem>
+                  <SelectItem value="tomorrow">Tomorrow</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -477,7 +546,7 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
         showScopeSelection={true}
         defaultScope={exportScope}
         hasSelectedRows={selectedRows.size > 0}
-        hasFilters={searchQuery || statusFilter !== "all"}
+        hasFilters={searchQuery || statusFilter !== "all" || dateFilter !== "all"}
       />
     </Card>
   );
