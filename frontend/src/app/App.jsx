@@ -273,7 +273,7 @@ function DashboardContent() {
           duration: 8000,
           icon: isMissedCall ? "📞" : isFailedPayment ? "💳" : "⚠️",
           className: "border-2 border-red-500",
-          position: "top-right",
+          position: "bottom-right",
         });
         
         setShownAlerts(prev => new Set([...prev, alert.id]));
@@ -576,7 +576,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <DashboardContent />
-      <Toaster richColors closeButton position="bottom-right" />
+      <Toaster richColors closeButton />
     </ThemeProvider>
   );
 }
