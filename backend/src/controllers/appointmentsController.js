@@ -19,7 +19,6 @@ export const getAllAppointments = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error fetching appointments:', error);
     res.status(500).json({ error: 'Failed to fetch appointments' });
   }
 };
@@ -35,7 +34,6 @@ export const getAppointmentById = async (req, res) => {
 
     res.json(appointment);
   } catch (error) {
-    console.error('Error fetching appointment:', error);
     res.status(500).json({ error: 'Failed to fetch appointment' });
   }
 };
@@ -79,7 +77,6 @@ export const createAppointment = async (req, res) => {
 
     res.status(201).json(appointment);
   } catch (error) {
-    console.error('Error creating appointment:', error);
     res.status(500).json({ error: 'Failed to create appointment' });
   }
 };
@@ -104,7 +101,6 @@ export const updateAppointment = async (req, res) => {
 
     res.json(appointment);
   } catch (error) {
-    console.error('Error updating appointment:', error);
     res.status(500).json({ error: 'Failed to update appointment' });
   }
 };
@@ -120,7 +116,6 @@ export const deleteAppointment = async (req, res) => {
 
     res.json({ message: 'Appointment deleted successfully', appointment });
   } catch (error) {
-    console.error('Error deleting appointment:', error);
     res.status(500).json({ error: 'Failed to delete appointment' });
   }
 };

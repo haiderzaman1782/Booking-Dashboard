@@ -18,7 +18,7 @@ export const paymentsService = {
   create: async (paymentData) => {
     const response = await api.post('/payments', {
       customerName: paymentData.customerName,
-      appointmentId: paymentData.appointmentId,
+      appointmentId: paymentData.appointmentId || null,
       paymentMethod: paymentData.paymentMethod,
       amount: paymentData.amount,
       status: paymentData.status || 'pending',
@@ -26,6 +26,7 @@ export const paymentsService = {
       timestamp: paymentData.timestamp || new Date().toISOString(),
       refundStatus: paymentData.refundStatus,
       service: paymentData.service,
+      userId: paymentData.userId || null,
     });
     return transformPayment(response.data);
   },

@@ -3,21 +3,30 @@ import pool from '../config/database.js';
 export class User {
   static async findAll(params = {}) {
     const { limit = 100, offset = 0, role, status } = params;
-    let query = 'SELECT * FROM users WHERE 1=1';
+    let query = `SELECT 
+      u.*,
+      COALESCE(COUNT(DISTINCT a.id), 0) as totalappointments,
+      COALESCE(COUNT(DISTINCT p.id), 0) as totalpayments,
+      COALESCE(COUNT(DISTINCT c.id), 0) as totalcalls
+    FROM users u
+    LEFT JOIN appointments a ON u.id = a.user_id
+    LEFT JOIN payments p ON u.id = p.user_id
+    LEFT JOIN calls c ON u.id = c.user_id
+    WHERE 1=1`;
     const values = [];
     let paramCount = 1;
 
     if (role && role !== 'all') {
-      query += ` AND role = $${paramCount++}`;
+      query += ` AND u.role = $${paramCount++}`;
       values.push(role);
     }
 
     if (status && status !== 'all') {
-      query += ` AND status = $${paramCount++}`;
+      query += ` AND u.status = $${paramCount++}`;
       values.push(status);
     }
 
-    query += ` ORDER BY created_at DESC LIMIT $${paramCount++} OFFSET $${paramCount}`;
+    query += ` GROUP BY u.id ORDER BY u.created_at DESC LIMIT $${paramCount++} OFFSET $${paramCount}`;
     values.push(limit, offset);
 
     const result = await pool.query(query, values);
@@ -25,7 +34,17 @@ export class User {
   }
 
   static async findById(id) {
-    const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    const result = await pool.query(`SELECT 
+      u.*,
+      COALESCE(COUNT(DISTINCT a.id), 0) as totalappointments,
+      COALESCE(COUNT(DISTINCT p.id), 0) as totalpayments,
+      COALESCE(COUNT(DISTINCT c.id), 0) as totalcalls
+    FROM users u
+    LEFT JOIN appointments a ON u.id = a.user_id
+    LEFT JOIN payments p ON u.id = p.user_id
+    LEFT JOIN calls c ON u.id = c.user_id
+    WHERE u.id = $1
+    GROUP BY u.id`, [id]);
     return result.rows[0];
   }
 
@@ -44,17 +63,13 @@ export class User {
       avatar = null,
     } = userData;
 
-    // Log avatar for debugging
-    console.log('User.create - avatar:', avatar ? `Present (${typeof avatar}, length: ${avatar.length})` : 'null/undefined');
-
     const result = await pool.query(
-      `INSERT INTO users (fullName, email, phone, role, status, avatar, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `INSERT INTO users (fullName, email, phone, role, status, avatar, lastActivity, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
        RETURNING *`,
       [fullName, email, phone, role, status, avatar]
     );
     
-    console.log('User created in DB, avatar saved:', result.rows[0].avatar ? 'Yes' : 'No');
     return result.rows[0];
   }
 
@@ -133,9 +148,9 @@ export class User {
 
     await pool.query(
       `UPDATE users SET 
-        totalAppointments = $1,
-        totalPayments = $2,
-        totalCalls = $3,
+        totalappointments = $1,
+        totalpayments = $2,
+        totalcalls = $3,
         updated_at = CURRENT_TIMESTAMP
        WHERE id = $4`,
       [

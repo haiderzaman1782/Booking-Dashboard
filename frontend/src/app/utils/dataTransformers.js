@@ -5,12 +5,16 @@
 export const transformAppointment = (apt) => {
   return {
     id: apt.id?.toString() || `APT${String(apt.id).padStart(3, '0')}`,
-    patientName: apt.patientName || apt.user?.name || 'Unknown',
+    patientName: apt.patientname || apt.user?.name || 'Unknown',
     date: apt.appointmentDate || apt.date,
     time: apt.appointmentTime || formatTime(apt.appointmentTime) || apt.time,
     service: apt.service || apt.serviceName,
-    status: apt.status,
+    status: apt.status || 'pending',
     phone: apt.phone || apt.user?.phone,
+    email: apt.email,
+    assignedAgent: apt.assignedAgent,
+    paymentStatus: apt.paymentStatus || apt.paymentstatus || 'pending',
+    createdAt: apt.createdDate || apt.created_at || apt.createdAt,
   };
 };
 
@@ -62,10 +66,12 @@ export const transformCall = (call) => {
     callerName: call.callername || call.user?.name || 'Unknown',
     phoneNumber: call.phonenumber || call.user?.phone || '',
     callType: call.callType || call.calltype || 'incoming',
-    // Map DB statuses directly: "completed", "bounced", "failed" → show as-is
+    // Map DB statuses directly: "completed", "bounced", "failed", "active", "missed" → show as-is
     status: dbStatus === 'completed' ? 'completed' 
            : dbStatus === 'bounced' ? 'bounced'
            : dbStatus === 'failed' ? 'failed'
+           : dbStatus === 'active' ? 'active'
+           : dbStatus === 'missed' ? 'missed'
            : 'completed', // Default to completed if status is unknown
     duration: duration || '00:00',
     timestamp: call.callTimestamp || call.callStartTime || call.timestamp,
@@ -86,8 +92,8 @@ export const transformUser = (user, stats = {}) => {
     phone: user.phone || '',
     role: user.role || 'customer',
     status: user.status || 'active',
-    totalAppointments: user.totalAppointments || stats.appointments || 0,
-    lastActivity: user.lastActivity || user.updatedAt || user.createdAt,
+    totalappointments: user.totalappointments || stats.appointments || 0,
+    lastActivity: user.lastactivity || user.updatedAt || user.createdAt,
     createdAt: user.createdAt,
     avatar: user.avatar && user.avatar.trim() !== '' 
       ? (user.avatar.startsWith('http') 
@@ -110,12 +116,23 @@ export const transformLiveCall = (call) => {
   if (!duration && call.callDurationSeconds) {
     duration = formatDuration(call.callDurationSeconds);
   }
+  
+  // For active calls, calculate duration from timestamp if not provided
+  if (!duration && call.status === 'active' && call.timestamp) {
+    const callStartTime = new Date(call.timestamp);
+    const now = new Date();
+    const secondsElapsed = Math.floor((now - callStartTime) / 1000);
+    duration = formatDuration(secondsElapsed);
+  }
+
+  // Get status from database - map 'active' status directly
+  const dbStatus = (call.status || call.callStatus)?.toLowerCase();
 
   return {
     id: call.id?.toString() || `CALL${String(call.id).padStart(3, '0')}`,
-    callerName: call.callerName || call.user?.name || 'Unknown',
+    callerName: call.callerName || call.callername || call.user?.name || 'Unknown',
     duration: duration || '00:00',
-    status: call.callStatus === 'completed' ? 'active' : 'on-hold',
+    status: dbStatus === 'active' ? 'active' : dbStatus || 'on-hold',
     purpose: call.purpose || 'Unknown',
   };
 };

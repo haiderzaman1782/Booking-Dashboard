@@ -57,10 +57,11 @@ export class Payment {
 
     const result = await pool.query(
       `INSERT INTO payments 
-       (id, transactionId, customerName, appointmentId, paymentMethod, amount, status, date, timestamp, refundStatus, service, user_id, appointment_id, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       (id, transactionId, customerName, paymentMethod, amount, status, date, timestamp, refundStatus, service, user_id, appointment_id, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
        RETURNING *`,
-      [finalId, finalTransactionId, customerName, appointmentId, paymentMethod, amount, status, date, timestamp, refundStatus, service, userId]
+      // $12 maps to appointment_id (foreign key referencing appointments.id)
+      [finalId, finalTransactionId, customerName, paymentMethod, amount, status, date, timestamp, refundStatus, service, userId, appointmentId]
     );
     return result.rows[0];
   }

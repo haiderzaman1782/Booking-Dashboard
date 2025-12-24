@@ -12,6 +12,8 @@ import { CallsLog } from "./components/CallsLog";
 import { Payments } from "./components/Payments";
 import { Users } from "./components/Users";
 import { Settings } from "./components/Settings";
+import { AdminPortal } from "./components/AdminPortal";
+import { Login } from "./components/Login";
 import { ThemeProvider } from "./providers/ThemeProvider";
 import { PhoneCall, Calendar, DollarSign, TrendingUp } from "lucide-react";
 import { appointmentsService } from "./services/appointmentsService";
@@ -53,6 +55,55 @@ function DashboardContent() {
   const [users, setUsers] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Check authentication on mount and when activeSection changes to admin
+  useEffect(() => {
+    checkAuthentication();
+  }, []);
+
+  useEffect(() => {
+    // If user tries to access admin portal, check authentication
+    if (activeSection === "admin") {
+      checkAuthentication();
+    }
+  }, [activeSection]);
+
+  const checkAuthentication = () => {
+    try {
+      const authData = sessionStorage.getItem("adminAuth");
+      if (authData) {
+        const auth = JSON.parse(authData);
+        if (auth.isAuthenticated) {
+          setIsAuthenticated(true);
+          return true;
+        }
+      }
+      setIsAuthenticated(false);
+      return false;
+    } catch (error) {
+      setIsAuthenticated(false);
+      return false;
+    }
+  };
+
+  const handleLoginSuccess = (authData) => {
+    setIsAuthenticated(true);
+    // If user was trying to access admin portal, keep them there
+    if (activeSection === "admin" || activeSection === "login") {
+      setActiveSection("admin");
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("adminAuth");
+    setIsAuthenticated(false);
+    // Redirect away from admin portal
+    if (activeSection === "admin") {
+      setActiveSection("dashboard");
+    }
+    toast.success("Logged out successfully");
+  };
 
   // Fetch all data on mount
   useEffect(() => {
@@ -83,7 +134,6 @@ function DashboardContent() {
       setLiveCalls(liveCallsRes || []);
       setUsers(usersRes.users || []);
     } catch (error) {
-      console.error('Error fetching data:', error);
       toast.error("Failed to load data. Using fallback data.");
       // Fallback to empty arrays if API fails
       setAppointments([]);
@@ -186,7 +236,6 @@ function DashboardContent() {
       });
     } catch (error) {
       toast.error("Failed to update appointment status");
-      console.error(error);
     }
   };
 
@@ -330,6 +379,29 @@ function DashboardContent() {
     return <Settings />;
   };
 
+  // Render admin portal section
+  const renderAdminPortalSection = () => {
+    // Check authentication before rendering admin portal
+    if (!isAuthenticated) {
+      return (
+        <Login 
+          onLoginSuccess={handleLoginSuccess}
+        />
+      );
+    }
+    
+    return (
+      <AdminPortal 
+        users={users}
+        appointments={appointments}
+        onRecordCreated={async (type, record) => {
+          await fetchAllData(); // Refresh all data
+        }}
+        onLogout={handleLogout}
+      />
+    );
+  };
+
   // Render dashboard section
   const renderDashboardSection = () => {
     if (loading) {
@@ -404,11 +476,11 @@ function DashboardContent() {
 
         {/* Live Calls and Payment Status Row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-          <div className="lg:col-span-2">
-            <LiveCallsPanel calls={liveCalls} />
-          </div>
-          <div>
+          <div className="h-auto lg:col-span-1">
             <PaymentStatus payments={payments} />
+          </div>
+          <div className="h-auto lg:col-span-2">
+            <LiveCallsPanel calls={liveCalls} />
           </div>
         </div>
 
@@ -421,17 +493,44 @@ function DashboardContent() {
     );
   };
 
+  // If accessing admin portal and not authenticated, show login page without sidebar/nav
+  if (activeSection === "admin" && !isAuthenticated) {
+    return (
+      <ThemeProvider>
+        <Login onLoginSuccess={handleLoginSuccess} />
+        <Toaster richColors closeButton position="top-right" />
+      </ThemeProvider>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Sidebar - Hidden on mobile, shown via Sheet */}
-      <Sidebar activeSection={activeSection} onSectionChange={setActiveSection} />
+      <Sidebar 
+        activeSection={activeSection} 
+        onSectionChange={(section) => {
+          // Check authentication before allowing access to admin portal
+          if (section === "admin" && !isAuthenticated) {
+            setActiveSection("admin"); // This will trigger the login screen
+          } else {
+            setActiveSection(section);
+          }
+        }} 
+      />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Navigation */}
         <TopNavigation 
           activeSection={activeSection} 
-          onSectionChange={setActiveSection} 
+          onSectionChange={(section) => {
+            // Check authentication before allowing access to admin portal
+            if (section === "admin" && !isAuthenticated) {
+              setActiveSection("admin"); // This will trigger the login screen
+            } else {
+              setActiveSection(section);
+            }
+          }} 
           alerts={alerts}
           onAlertClick={handleAlertClick}
         />
@@ -447,6 +546,8 @@ function DashboardContent() {
               ? renderPaymentsSection()
               : activeSection === "users"
               ? renderUsersSection()
+              : activeSection === "admin"
+              ? renderAdminPortalSection()
               : activeSection === "settings"
               ? renderSettingsSection()
               : activeSection === "dashboard"

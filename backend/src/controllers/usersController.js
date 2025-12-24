@@ -28,10 +28,9 @@ const deleteAvatarFile = async (avatarPath) => {
   try {
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
-      console.log(`Deleted old avatar file: ${filename}`);
     }
   } catch (error) {
-    console.error(`Error deleting avatar file ${filename}:`, error);
+    // Error deleting avatar file
   }
 };
 
@@ -55,7 +54,6 @@ export const getAllUsers = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 };
@@ -75,7 +73,6 @@ export const getUserById = async (req, res) => {
       avatar: getAvatarUrl(user.avatar)
     });
   } catch (error) {
-    console.error('Error fetching user:', error);
     res.status(500).json({ error: 'Failed to fetch user' });
   }
 };
@@ -88,7 +85,6 @@ export const createUser = async (req, res) => {
     let avatarFilename = null;
     if (req.file) {
       avatarFilename = req.file.filename;
-      console.log('Avatar file uploaded:', avatarFilename);
     }
     
     if (!email) {
@@ -114,7 +110,6 @@ export const createUser = async (req, res) => {
       avatar: avatarFilename, // Store filename instead of base64
     });
 
-    console.log('User created with avatar:', user.avatar ? 'Present' : 'Missing');
     res.status(201).json({
       ...user,
       avatar: getAvatarUrl(user.avatar)
@@ -124,7 +119,6 @@ export const createUser = async (req, res) => {
     if (req.file) {
       await deleteAvatarFile(req.file.filename);
     }
-    console.error('Error creating user:', error);
     res.status(500).json({ error: 'Failed to create user' });
   }
 };
@@ -148,8 +142,6 @@ export const updateUser = async (req, res) => {
     let avatarFilename = currentUser.avatar; // Keep existing avatar by default
     if (req.file) {
       avatarFilename = req.file.filename;
-      console.log('Avatar file uploaded:', avatarFilename);
-      
       // Delete old avatar file if it exists
       if (currentUser.avatar) {
         await deleteAvatarFile(currentUser.avatar);
@@ -174,7 +166,6 @@ export const updateUser = async (req, res) => {
     if (req.file) {
       await deleteAvatarFile(req.file.filename);
     }
-    console.error('Error updating user:', error);
     res.status(500).json({ error: 'Failed to update user' });
   }
 };
@@ -197,7 +188,6 @@ export const deleteUser = async (req, res) => {
 
     res.json({ message: 'User deleted successfully', user: deletedUser });
   } catch (error) {
-    console.error('Error deleting user:', error);
     res.status(500).json({ error: 'Failed to delete user' });
   }
 };

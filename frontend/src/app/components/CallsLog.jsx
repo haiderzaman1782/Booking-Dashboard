@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card.jsx";
 import { Badge } from "./ui/badge.jsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table.jsx";
-import { PhoneCall, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, Search, Clock, Calendar } from "lucide-react";
+import { PhoneCall, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, Search, Clock, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select.jsx";
@@ -9,7 +9,7 @@ import { Checkbox } from "./ui/checkbox.jsx";
 import { ExportDropdown } from "./ExportDropdown.jsx";
 import { ExportConfigModal } from "./ExportConfigModal.jsx";
 import { exportToCSV, exportToPDF, formatDateForExport, formatDateTimeForExport } from "../utils/exportUtils.js";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { MetricCard } from "./MetricCard.jsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog.jsx";
@@ -21,6 +21,7 @@ const statusColors = {
   missed: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
   bounced: "bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800",
   failed: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
+  active: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800",
 };
 
 const callTypeIcons = {
@@ -33,6 +34,7 @@ const statusIcons = {
   missed: PhoneMissed,
   bounced: PhoneOff,
   failed: PhoneMissed,
+  active: PhoneCall,
 };
 
 export function CallsLog({ callLogs, liveCalls, onCallCreated }) {
@@ -55,6 +57,8 @@ export function CallsLog({ callLogs, liveCalls, onCallCreated }) {
     purpose: '',
     notes: '',
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Calculate metrics
   const missedCalls = callLogs.filter(call => call.status === "missed").length;
@@ -75,6 +79,22 @@ export function CallsLog({ callLogs, liveCalls, onCallCreated }) {
     
     return matchesSearch && matchesStatus && matchesCallType;
   });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredCallLogs.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedCallLogs = filteredCallLogs.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, callTypeFilter]);
+
+  // Reset to page 1 when page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [pageSize]);
 
   const formatTimestamp = (timestamp) => {
     const date = new Date(timestamp);
@@ -110,10 +130,20 @@ export function CallsLog({ callLogs, liveCalls, onCallCreated }) {
   };
 
   const handleSelectAll = () => {
-    if (selectedRows.size === filteredCallLogs.length) {
-      setSelectedRows(new Set());
+    if (selectedRows.size === paginatedCallLogs.length && paginatedCallLogs.every(call => selectedRows.has(call.id))) {
+      // Deselect all paginated items
+      setSelectedRows(prev => {
+        const newSet = new Set(prev);
+        paginatedCallLogs.forEach(call => newSet.delete(call.id));
+        return newSet;
+      });
     } else {
-      setSelectedRows(new Set(filteredCallLogs.map(call => call.id)));
+      // Select all paginated items
+      setSelectedRows(prev => {
+        const newSet = new Set(prev);
+        paginatedCallLogs.forEach(call => newSet.add(call.id));
+        return newSet;
+      });
     }
   };
 
@@ -132,31 +162,40 @@ export function CallsLog({ callLogs, liveCalls, onCallCreated }) {
 
   // Export columns configuration
   const exportColumns = [
-    { key: "id", label: "Call ID" },
+    // { key: "id", label: "Call ID" },
     { key: "callerName", label: "Caller Name" },
     { key: "phoneNumber", label: "Phone Number" },
     { key: "callType", label: "Call Type" },
     { key: "status", label: "Status" },
-    { key: "duration", label: "Duration" },
-    { key: "timestamp", label: "Date & Time" },
+    // { key: "duration", label: "Duration" },
+    // { key: "timestamp", label: "Date & Time" },
     { key: "purpose", label: "Purpose" },
-    { key: "notes", label: "Notes" },
+    // { key: "notes", label: "Notes" },
   ];
 
   // Handle export
   const handleExport = async (format) => {
     setSelectedFormat(format);
-    setExportScope(
-      selectedRows.size > 0 ? "selected" : 
-      (searchQuery || statusFilter !== "all" || callTypeFilter !== "all") ? "filtered" : "all"
-    );
+    // Allow user to choose scope in modal, but default based on current state
+    const defaultScope = selectedRows.size > 0 ? "selected" : 
+      (searchQuery || statusFilter !== "all" || callTypeFilter !== "all") ? "filtered" : "all";
+    setExportScope(defaultScope);
     setShowExportModal(true);
   };
 
   const handleExportConfirm = async (config) => {
     setIsExporting(true);
     try {
-      const dataToExport = getExportData();
+      // Use scope from config if provided, otherwise use current exportScope
+      const scopeToUse = config.exportScope || exportScope;
+      let dataToExport = [];
+      if (scopeToUse === "selected") {
+        dataToExport = filteredCallLogs.filter(call => selectedRows.has(call.id));
+      } else if (scopeToUse === "filtered") {
+        dataToExport = filteredCallLogs;
+      } else {
+        dataToExport = callLogs; // All records
+      }
       
       // Filter by date range if provided
       let filteredData = dataToExport;
@@ -224,7 +263,6 @@ export function CallsLog({ callLogs, liveCalls, onCallCreated }) {
 
       setShowExportModal(false);
     } catch (error) {
-      console.error("Export error:", error);
       toast.error("Export failed", {
         description: error.message || "An error occurred while exporting data",
       });
@@ -258,7 +296,6 @@ export function CallsLog({ callLogs, liveCalls, onCallCreated }) {
       toast.success("Call log created successfully");
     } catch (error) {
       toast.error("Failed to create call log");
-      console.error(error);
     }
   };
 
@@ -307,10 +344,6 @@ export function CallsLog({ callLogs, liveCalls, onCallCreated }) {
             <div className="flex items-center justify-between">
               <CardTitle className="dark:text-white">Call Logs</CardTitle>
               <div className="flex items-center gap-2">
-                <Button onClick={() => setIsCreateDialogOpen(true)} className="gap-2 dark:bg-gray-700 dark:hover:bg-gray-600">
-                  <Plus className="w-4 h-4" />
-                  Add Call
-                </Button>
                 <ExportDropdown
                   onExport={handleExport}
                   disabled={filteredCallLogs.length === 0}
@@ -342,6 +375,7 @@ export function CallsLog({ callLogs, liveCalls, onCallCreated }) {
                   </SelectTrigger>
                   <SelectContent className="dark:bg-gray-900 dark:border-gray-700">
                     <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                     <SelectItem value="bounced">Bounced</SelectItem>
                     <SelectItem value="failed">Failed</SelectItem>
@@ -367,10 +401,10 @@ export function CallsLog({ callLogs, liveCalls, onCallCreated }) {
           <div className="overflow-x-auto -mx-6 px-6">
             <Table className="table-auto ">
               <TableHeader className={`mb-5`}>
-                <TableRow className="dark:border-gray-700 table-header  bg-gray-300">
+                <TableRow className="dark:border-gray-700 ">
                   <TableHead className="w-12">
                     <Checkbox
-                      checked={selectedRows.size === filteredCallLogs.length && filteredCallLogs.length > 0}
+                      checked={paginatedCallLogs.length > 0 && paginatedCallLogs.every(call => selectedRows.has(call.id))}
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
@@ -392,7 +426,7 @@ export function CallsLog({ callLogs, liveCalls, onCallCreated }) {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredCallLogs.map((call) => {
+                  paginatedCallLogs.map((call) => {
                     const CallTypeIcon = callTypeIcons[call.callType] || PhoneCall;
                     const StatusIcon = statusIcons[call.status] || PhoneCall;
                     
@@ -460,6 +494,86 @@ export function CallsLog({ callLogs, liveCalls, onCallCreated }) {
               </TableBody>
             </Table>
           </div>
+          
+          {/* Pagination Controls */}
+          {filteredCallLogs.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Show</span>
+                <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(parseInt(value))}>
+                  <SelectTrigger className="w-[80px] h-8 dark:bg-gray-900 dark:border-gray-700 dark:text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="dark:bg-gray-900 dark:border-gray-700">
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="15">15</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-gray-600 dark:text-gray-400">entries</span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  Showing {startIndex + 1} to {Math.min(endIndex, filteredCallLogs.length)} of {filteredCallLogs.length} entries
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-8 h-8 p-0 ${
+                          currentPage === pageNum 
+                            ? "dark:bg-blue-600 dark:text-white" 
+                            : "dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                        }`}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
 
         {/* Create Call Dialog */}

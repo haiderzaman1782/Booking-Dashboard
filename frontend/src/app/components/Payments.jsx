@@ -23,7 +23,9 @@ import {
   Calendar,
   Phone,
   FileText,
-  AlertCircle
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { MetricCard } from "./MetricCard.jsx";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
@@ -73,6 +75,8 @@ export function Payments({ payments, appointments, onPaymentCreated }) {
     date: new Date().toISOString().split('T')[0],
     service: '',
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Calculate metrics from database payments
   const totalRevenue = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
@@ -108,6 +112,22 @@ export function Payments({ payments, appointments, onPaymentCreated }) {
     
     return matchesSearch && matchesStatus && matchesDate;
   });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredPayments.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedPayments = filteredPayments.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, dateFilter]);
+
+  // Reset to page 1 when page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [pageSize]);
 
   // Get appointment details for selected payment
   const getAppointmentDetails = (appointmentId) => {
@@ -189,15 +209,15 @@ export function Payments({ payments, appointments, onPaymentCreated }) {
   // Export columns configuration
   const exportColumns = [
     { key: "transactionId", label: "Transaction ID" },
-    { key: "id", label: "Payment ID" },
+    // { key: "appointmentId", label: "Appointment_ID" },
+    // { key: "id", label: "Payment ID" },
     { key: "customerName", label: "Customer Name" },
-    { key: "appointmentId", label: "Related Appointment ID" },
     { key: "paymentMethod", label: "Payment Method" },
     { key: "amount", label: "Amount" },
     { key: "status", label: "Status" },
     { key: "date", label: "Date" },
-    { key: "timestamp", label: "Date & Time" },
-    { key: "refundStatus", label: "Refund Status" },
+    // { key: "timestamp", label: "Date & Time" },
+    // { key: "refundStatus", label: "Refund Status" },
   ];
 
   // Handle export
@@ -234,14 +254,22 @@ export function Payments({ payments, appointments, onPaymentCreated }) {
       toast.success("Payment created successfully");
     } catch (error) {
       toast.error("Failed to create payment");
-      console.error(error);
     }
   };
 
   const handleExportConfirm = async (config) => {
     setIsExporting(true);
     try {
-      const dataToExport = getExportData();
+      // Use scope from config if provided, otherwise use current exportScope
+      const scopeToUse = config.exportScope || exportScope;
+      let dataToExport = [];
+      if (scopeToUse === "selected") {
+        dataToExport = filteredPayments.filter(p => selectedRows.has(p.id));
+      } else if (scopeToUse === "filtered") {
+        dataToExport = filteredPayments;
+      } else {
+        dataToExport = payments; // All records
+      }
       
       // Filter by date range if provided
       let filteredData = dataToExport;
@@ -320,7 +348,6 @@ export function Payments({ payments, appointments, onPaymentCreated }) {
 
       setShowExportModal(false);
     } catch (error) {
-      console.error("Export error:", error);
       toast.error("Export failed", {
         description: error.message || "An error occurred while exporting data",
       });
@@ -342,11 +369,29 @@ export function Payments({ payments, appointments, onPaymentCreated }) {
     { name: "Failed", value: failedPayments.length, color: "#ef4444" }
   ];
 
+  // Group payment methods: Cards (Credit Card, Debit Card) and Other (transfers like Mobile Payment, Bank Transfer, PayPal, etc.)
+  const cardMethods = ["Credit Card", "Debit Card"];
+  const transferMethods = ["Mobile Payment", "Bank Transfer", "PayPal"];
+  
   const paymentMethodData = [
-    { name: "Stripe", value: payments.filter(p => p.paymentMethod === "Stripe").length, color: "#3b82f6" },
-    { name: "Card", value: payments.filter(p => p.paymentMethod === "Card").length, color: "#14b8a6" },
-    { name: "Cash", value: payments.filter(p => p.paymentMethod === "Cash").length, color: "#8b5cf6" },
-    { name: "Other", value: payments.filter(p => !["Stripe", "Card", "Cash"].includes(p.paymentMethod)).length, color: "#f59e0b" }
+    { 
+      name: "Cards", 
+      value: payments.filter(p => cardMethods.includes(p.paymentMethod)).length, 
+      color: "#3b82f6" 
+    },
+    { 
+      name: "Cash", 
+      value: payments.filter(p => p.paymentMethod === "Cash").length, 
+      color: "#8b5cf6" 
+    },
+    { 
+      name: "Other", 
+      value: payments.filter(p => 
+        transferMethods.includes(p.paymentMethod) || 
+        (!cardMethods.includes(p.paymentMethod) && p.paymentMethod !== "Cash" && p.paymentMethod !== "Stripe" && p.paymentMethod !== "Card")
+      ).length, 
+      color: "#f59e0b" 
+    }
   ];
 
   return (
@@ -621,8 +666,24 @@ export function Payments({ payments, appointments, onPaymentCreated }) {
                 <TableRow className="dark:border-gray-700">
                   <TableHead className="w-12">
                     <Checkbox
-                      checked={selectedRows.size === filteredPayments.length && filteredPayments.length > 0}
-                      onCheckedChange={handleSelectAll}
+                      checked={selectedRows.size === paginatedPayments.length && paginatedPayments.length > 0 && paginatedPayments.every(p => selectedRows.has(p.id))}
+                      onCheckedChange={() => {
+                        if (selectedRows.size === paginatedPayments.length && paginatedPayments.every(p => selectedRows.has(p.id))) {
+                          // Deselect all paginated items
+                          setSelectedRows(prev => {
+                            const newSet = new Set(prev);
+                            paginatedPayments.forEach(p => newSet.delete(p.id));
+                            return newSet;
+                          });
+                        } else {
+                          // Select all paginated items
+                          setSelectedRows(prev => {
+                            const newSet = new Set(prev);
+                            paginatedPayments.forEach(p => newSet.add(p.id));
+                            return newSet;
+                          });
+                        }
+                      }}
                     />
                   </TableHead>
                   <TableHead className="dark:text-gray-300 whitespace-nowrap">Transaction ID</TableHead>
@@ -643,7 +704,7 @@ export function Payments({ payments, appointments, onPaymentCreated }) {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredPayments.map((payment) => {
+                  paginatedPayments.map((payment) => {
                     const StatusIcon = statusIcons[payment.status];
                     const MethodIcon = paymentMethodIcons[payment.paymentMethod] || CreditCard;
                     
@@ -721,6 +782,86 @@ export function Payments({ payments, appointments, onPaymentCreated }) {
               </TableBody>
             </Table>
           </div>
+          
+          {/* Pagination Controls */}
+          {filteredPayments.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Show</span>
+                <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(parseInt(value))}>
+                  <SelectTrigger className="w-[80px] h-8 dark:bg-gray-900 dark:border-gray-700 dark:text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="dark:bg-gray-900 dark:border-gray-700">
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="15">15</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-gray-600 dark:text-gray-400">entries</span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  Showing {startIndex + 1} to {Math.min(endIndex, filteredPayments.length)} of {filteredPayments.length} entries
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-8 h-8 p-0 ${
+                          currentPage === pageNum 
+                            ? "dark:bg-blue-600 dark:text-white" 
+                            : "dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                        }`}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -994,6 +1135,10 @@ export function Payments({ payments, appointments, onPaymentCreated }) {
         showDateRange={true}
         showColumnSelection={true}
         showSummaryOption={true}
+        showScopeSelection={true}
+        defaultScope={exportScope}
+        hasSelectedRows={selectedRows.size > 0}
+        hasFilters={searchQuery || statusFilter !== "all" || dateFilter !== "all"}
       />
     </div>
   );

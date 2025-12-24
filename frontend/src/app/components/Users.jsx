@@ -30,7 +30,9 @@ import {
   TrendingUp,
   ArrowUpDown,
   Upload,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { MetricCard } from "./MetricCard.jsx";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
@@ -90,6 +92,8 @@ export function Users({ users, appointments, payments, callLogs }) {
   const editFileInputRef = useRef(null);
   // Filter out customers - only show admin, staff, and agent
   const [usersData, setUsersData] = useState(users.filter(u => u.role !== "customer"));
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Update usersData when users prop changes
   useEffect(() => {
@@ -130,11 +134,27 @@ export function Users({ users, appointments, payments, callLogs }) {
       case "mostActive":
         return new Date(b.lastActivity) - new Date(a.lastActivity);
       case "mostAppointments":
-        return b.totalAppointments - a.totalAppointments;
+        return b.totalappointments - a.totalappointments;
       default:
         return 0;
     }
   });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredUsers.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, roleFilter, statusFilter, sortBy]);
+
+  // Reset to page 1 when page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [pageSize]);
 
   // Get user-related data
   const getUserAppointments = (userId) => {
@@ -218,7 +238,6 @@ export function Users({ users, appointments, payments, callLogs }) {
       }
     } catch (error) {
       toast.error("Failed to update user status");
-      console.error(error);
     }
   };
 
@@ -245,7 +264,6 @@ export function Users({ users, appointments, payments, callLogs }) {
         }
       } catch (error) {
         toast.error("Failed to delete user");
-        console.error(error);
       }
     }
   };
@@ -279,10 +297,18 @@ export function Users({ users, appointments, payments, callLogs }) {
   };
 
   const handleSelectAll = () => {
-    if (selectedRows.size === filteredUsers.length) {
-      setSelectedRows(new Set());
+    if (paginatedUsers.every(u => selectedRows.has(u.id))) {
+      setSelectedRows(prev => {
+        const newSet = new Set(prev);
+        paginatedUsers.forEach(u => newSet.delete(u.id));
+        return newSet;
+      });
     } else {
-      setSelectedRows(new Set(filteredUsers.map(u => u.id)));
+      setSelectedRows(prev => {
+        const newSet = new Set(prev);
+        paginatedUsers.forEach(u => newSet.add(u.id));
+        return newSet;
+      });
     }
   };
 
@@ -294,24 +320,24 @@ export function Users({ users, appointments, payments, callLogs }) {
     } else if (exportScope === "filtered") {
       dataToExport = filteredUsers;
     } else {
-      dataToExport = usersData;
+      dataToExport = users; // All users including customers
     }
     return dataToExport;
   };
 
   // Export columns configuration
   const exportColumns = [
-    { key: "id", label: "User ID" },
+    // { key: "id", label: "User ID" },
     { key: "fullName", label: "Full Name" },
     { key: "email", label: "Email" },
+    { key: "totalappointments", label: "Total Appointments" },
     { key: "phone", label: "Phone" },
     { key: "role", label: "Role" },
     { key: "status", label: "Status" },
-    { key: "totalAppointments", label: "Total Appointments" },
-    { key: "totalPayments", label: "Total Payments" },
-    { key: "totalCalls", label: "Total Calls" },
-    { key: "createdAt", label: "Created Date" },
-    { key: "lastActivity", label: "Last Activity" },
+    // { key: "totalpayments", label: "Total Payments" },
+    // { key: "totalcalls", label: "Total Calls" },
+    // { key: "createdAt", label: "Created Date" },
+    // { key: "lastActivity", label: "Last Activity" },
   ];
 
   // Compress image before converting to base64
@@ -435,24 +461,32 @@ export function Users({ users, appointments, payments, callLogs }) {
       toast.success("User created successfully");
     } catch (error) {
       toast.error("Failed to create user");
-      console.error(error);
     }
   };
 
   // Handle export
   const handleExport = async (format) => {
     setSelectedFormat(format);
-    setExportScope(
-      selectedRows.size > 0 ? "selected" : 
-      (searchQuery || roleFilter !== "all" || statusFilter !== "all") ? "filtered" : "all"
-    );
+    // Allow user to choose scope in modal, but default based on current state
+    const defaultScope = selectedRows.size > 0 ? "selected" : 
+      (searchQuery || roleFilter !== "all" || statusFilter !== "all") ? "filtered" : "all";
+    setExportScope(defaultScope);
     setShowExportModal(true);
   };
 
   const handleExportConfirm = async (config) => {
     setIsExporting(true);
     try {
-      const dataToExport = getExportData();
+      // Use scope from config if provided, otherwise use current exportScope
+      const scopeToUse = config.exportScope || exportScope;
+      let dataToExport = [];
+      if (scopeToUse === "selected") {
+        dataToExport = filteredUsers.filter(u => selectedRows.has(u.id));
+      } else if (scopeToUse === "filtered") {
+        dataToExport = filteredUsers;
+      } else {
+        dataToExport = users; // All records including all users
+      }
       
       // Filter by date range if provided
       let filteredData = dataToExport;
@@ -524,7 +558,6 @@ export function Users({ users, appointments, payments, callLogs }) {
 
       setShowExportModal(false);
     } catch (error) {
-      console.error("Export error:", error);
       toast.error("Export failed", {
         description: error.message || "An error occurred while exporting data",
       });
@@ -725,10 +758,6 @@ export function Users({ users, appointments, payments, callLogs }) {
             <div className="flex items-center justify-between">
               <CardTitle className="dark:text-white">Users Management</CardTitle>
               <div className="flex items-center gap-2">
-                <Button onClick={() => setIsCreateDialogOpen(true)} className="gap-2 dark:bg-gray-700 dark:hover:bg-gray-600">
-                  <UserPlus className="w-4 h-4" />
-                  Add User
-                </Button>
                 <ExportDropdown
                   onExport={handleExport}
                   disabled={filteredUsers.length === 0}
@@ -794,12 +823,12 @@ export function Users({ users, appointments, payments, callLogs }) {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto -mx-6 px-6">
-            <Table>
+            <Table className="text-center">
               <TableHeader>
                 <TableRow className="dark:border-gray-700">
                   <TableHead className="w-12">
                     <Checkbox
-                      checked={selectedRows.size === filteredUsers.length && filteredUsers.length > 0}
+                      checked={paginatedUsers.length > 0 && paginatedUsers.every(u => selectedRows.has(u.id))}
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
@@ -822,14 +851,14 @@ export function Users({ users, appointments, payments, callLogs }) {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredUsers.map((user) => {
+                  paginatedUsers.map((user) => {
                     const RoleIcon = roleIcons[user.role] || UsersIcon;
                     const isSuspicious = user.failedCalls >= 3 || user.failedPayments >= 2;
                     
                     return (
                       <TableRow 
                         key={user.id} 
-                        className={`dark:border-gray-700 ${
+                        className={`dark:border-gray-700  ${
                           user.status === "blocked" || isSuspicious
                             ? "bg-red-50/50 dark:bg-red-900/10" 
                             : ""
@@ -877,7 +906,7 @@ export function Users({ users, appointments, payments, callLogs }) {
                           </Badge>
                         </TableCell>
                         <TableCell className="dark:text-gray-300 whitespace-nowrap">
-                          {user.totalAppointments}
+                          {user.totalappointments}
                         </TableCell>
                         <TableCell className="dark:text-gray-300 whitespace-nowrap text-sm">
                           {formatTimestamp(user.lastActivity)}
@@ -925,6 +954,86 @@ export function Users({ users, appointments, payments, callLogs }) {
               </TableBody>
             </Table>
           </div>
+          
+          {/* Pagination Controls */}
+          {filteredUsers.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Show</span>
+                <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(parseInt(value))}>
+                  <SelectTrigger className="w-[80px] h-8 dark:bg-gray-900 dark:border-gray-700 dark:text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="dark:bg-gray-900 dark:border-gray-700">
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="15">15</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-gray-600 dark:text-gray-400">entries</span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  Showing {startIndex + 1} to {Math.min(endIndex, filteredUsers.length)} of {filteredUsers.length} entries
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-8 h-8 p-0 ${
+                          currentPage === pageNum 
+                            ? "dark:bg-blue-600 dark:text-white" 
+                            : "dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                        }`}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -982,7 +1091,7 @@ export function Users({ users, appointments, payments, callLogs }) {
                 </div>
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Appointments</p>
-                  <p className="text-sm font-semibold dark:text-gray-300">{selectedUser.totalAppointments}</p>
+                  <p className="text-sm font-semibold dark:text-gray-300">{selectedUser.totalappointments}</p>
                 </div>
                 {(selectedUser.failedCalls > 0 || selectedUser.failedPayments > 0) && (
                   <div className="space-y-2">
@@ -1318,7 +1427,6 @@ export function Users({ users, appointments, payments, callLogs }) {
                   }
                 } catch (error) {
                   toast.error("Failed to update user");
-                  console.error(error);
                 }
               }}
             >
@@ -1519,6 +1627,10 @@ export function Users({ users, appointments, payments, callLogs }) {
         showDateRange={true}
         showColumnSelection={true}
         showSummaryOption={true}
+        showScopeSelection={true}
+        defaultScope={exportScope}
+        hasSelectedRows={selectedRows.size > 0}
+        hasFilters={searchQuery || roleFilter !== "all" || statusFilter !== "all"}
       />
     </div>
   );

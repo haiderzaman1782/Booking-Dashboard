@@ -8,7 +8,9 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "db:migrate": "node src/scripts/migrate.js",
-    "db:seed": "node src/scripts/seedData.js"
+    "db:migrate:active": "node src/scripts/migrateActiveStatus.js",
+    "db:seed": "node src/scripts/seedData.js",
+    "db:add-active-calls": "node src/scripts/addActiveCalls.js"
   },
   "keywords": [
     "booking",

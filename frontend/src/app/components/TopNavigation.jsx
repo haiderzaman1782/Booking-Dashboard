@@ -1,4 +1,4 @@
-import { Bell, Search, Menu, LayoutDashboard, Calendar, PhoneCall, CreditCard, Users, Settings, CircleX, TriangleAlert, Clock } from "lucide-react";
+import { Bell, Search, Menu, LayoutDashboard, Calendar, PhoneCall, CreditCard, Users, Settings, Shield, CircleX, TriangleAlert, Clock } from "lucide-react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Badge } from "./ui/badge.jsx";
@@ -16,6 +16,7 @@ const menuItems = [
   { id: "calls", label: "Calls", icon: PhoneCall },
   { id: "payments", label: "Payments", icon: CreditCard },
   { id: "users", label: "Users", icon: Users },
+  { id: "admin", label: "Admin Portal", icon: Shield },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 

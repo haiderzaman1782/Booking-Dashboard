@@ -21,11 +21,10 @@ const pool = new Pool({
 
 // Test connection
 pool.on('connect', () => {
-  console.log('Database connection established');
+  // Database connection established
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
   process.exit(-1);
 });
 

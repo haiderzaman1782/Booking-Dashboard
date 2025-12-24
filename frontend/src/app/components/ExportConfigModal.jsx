@@ -24,6 +24,10 @@ export function ExportConfigModal({
   showDateRange = true,
   showColumnSelection = true,
   showSummaryOption = false,
+  showScopeSelection = false,
+  defaultScope = "all",
+  hasSelectedRows = false,
+  hasFilters = false,
 }) {
   const [format, setFormat] = useState(defaultFormat);
   const [orientation, setOrientation] = useState(defaultOrientation);
@@ -33,6 +37,7 @@ export function ExportConfigModal({
     columns.map(col => col.key)
   );
   const [includeSummary, setIncludeSummary] = useState(false);
+  const [exportScope, setExportScope] = useState(defaultScope);
 
   // Reset state when modal opens or defaultFormat changes
   useEffect(() => {
@@ -43,8 +48,9 @@ export function ExportConfigModal({
       setEndDate("");
       setSelectedColumns(columns.map(col => col.key));
       setIncludeSummary(false);
+      setExportScope(defaultScope);
     }
-  }, [open, defaultFormat, defaultOrientation, columns]);
+  }, [open, defaultFormat, defaultOrientation, columns, defaultScope]);
 
   const handleColumnToggle = (columnKey) => {
     setSelectedColumns(prev =>
@@ -74,6 +80,7 @@ export function ExportConfigModal({
       endDate: endDate || null,
       columns: selectedColumns,
       includeSummary,
+      exportScope: showScopeSelection ? exportScope : defaultScope,
     });
   };
 
@@ -91,6 +98,30 @@ export function ExportConfigModal({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {/* Export Scope Selection */}
+          {showScopeSelection && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Export Scope
+              </Label>
+              <Select value={exportScope} onValueChange={setExportScope}>
+                <SelectTrigger className="dark:bg-gray-900 dark:border-gray-700 dark:text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="dark:bg-gray-900 dark:border-gray-700">
+                  <SelectItem value="all">All Records</SelectItem>
+                  {hasFilters && <SelectItem value="filtered">Filtered Results</SelectItem>}
+                  {hasSelectedRows && <SelectItem value="selected">Selected Rows</SelectItem>}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {exportScope === "all" && "Export all records from the database"}
+                {exportScope === "filtered" && "Export only the filtered results"}
+                {exportScope === "selected" && "Export only the selected rows"}
+              </p>
+            </div>
+          )}
+
           {/* Format Selection */}
           <div className="space-y-2">
             <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">

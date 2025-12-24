@@ -1,15 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card.jsx";
 import { Badge } from "./ui/badge.jsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table.jsx";
-import { Phone, Search, ListFilter, CheckSquare, Square } from "lucide-react";
+import { Phone, Search, ListFilter, CheckSquare, Square, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select.jsx";
 import { Checkbox } from "./ui/checkbox.jsx";
 import { ExportDropdown } from "./ExportDropdown.jsx";
 import { ExportConfigModal } from "./ExportConfigModal.jsx";
-import { exportToCSV, exportToPDF, formatDateForExport, formatDateTimeForExport } from "../utils/exportUtils.js";
-import { useState } from "react";
+import { exportToCSV, exportToPDF } from "../utils/exportUtils.js";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog.jsx";
 import { Plus, Calendar, Clock } from "lucide-react";
@@ -41,6 +41,8 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
     assignedAgent: '',
     status: 'pending',
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Filter appointments
   const filteredAppointments = appointments.filter(apt => {
@@ -54,38 +56,25 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
     return matchesSearch && matchesStatus;
   });
 
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredAppointments.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedAppointments = filteredAppointments.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter]);
+
+  // Reset to page 1 when page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [pageSize]);
+
   const handleStatusChange = (appointmentId, newStatus) => {
     if (onStatusUpdate) {
       onStatusUpdate(appointmentId, newStatus);
-    }
-  };
-
-  // Handle create appointment
-  const handleCreateAppointment = async () => {
-    if (!newAppointment.patientName || !newAppointment.service || !newAppointment.date || !newAppointment.time) {
-      toast.error("Please fill in required fields");
-      return;
-    }
-    try {
-      const created = await appointmentsService.create({
-        patientName: newAppointment.patientName,
-        phone: newAppointment.phone,
-        email: newAppointment.email,
-        service: newAppointment.service,
-        date: newAppointment.date,
-        time: newAppointment.time,
-        assignedAgent: newAppointment.assignedAgent,
-        status: newAppointment.status,
-      });
-      if (onAppointmentCreated) {
-        onAppointmentCreated(created);
-      }
-      setIsCreateDialogOpen(false);
-      setNewAppointment({ patientName: '', phone: '', email: '', service: '', date: '', time: '', assignedAgent: '', status: 'pending' });
-      toast.success("Appointment created successfully");
-    } catch (error) {
-      toast.error("Failed to create appointment");
-      console.error(error);
     }
   };
 
@@ -103,10 +92,18 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
   };
 
   const handleSelectAll = () => {
-    if (selectedRows.size === filteredAppointments.length) {
-      setSelectedRows(new Set());
+    if (paginatedAppointments.every(apt => selectedRows.has(apt.id))) {
+      setSelectedRows(prev => {
+        const newSet = new Set(prev);
+        paginatedAppointments.forEach(apt => newSet.delete(apt.id));
+        return newSet;
+      });
     } else {
-      setSelectedRows(new Set(filteredAppointments.map(apt => apt.id)));
+      setSelectedRows(prev => {
+        const newSet = new Set(prev);
+        paginatedAppointments.forEach(apt => newSet.add(apt.id));
+        return newSet;
+      });
     }
   };
 
@@ -125,33 +122,37 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
 
   // Export columns configuration
   const exportColumns = [
-    { key: "id", label: "Appointment ID" },
     { key: "patientName", label: "Customer Name" },
     { key: "phone", label: "Phone" },
     { key: "email", label: "Email" },
     { key: "service", label: "Service Name" },
-    { key: "date", label: "Appointment Date" },
-    { key: "time", label: "Appointment Time" },
-    { key: "assignedAgent", label: "Assigned Agent" },
-    { key: "status", label: "Status" },
+    // { key: "status", label: "Status" },
     { key: "paymentStatus", label: "Payment Status" },
-    { key: "createdDate", label: "Created Date" },
   ];
 
   // Handle export
   const handleExport = async (format) => {
     setSelectedFormat(format);
-    setExportScope(
-      selectedRows.size > 0 ? "selected" : 
-      (searchQuery || statusFilter !== "all") ? "filtered" : "all"
-    );
+    // Allow user to choose scope in modal, but default based on current state
+    const defaultScope = selectedRows.size > 0 ? "selected" : 
+      (searchQuery || statusFilter !== "all") ? "filtered" : "all";
+    setExportScope(defaultScope);
     setShowExportModal(true);
   };
 
   const handleExportConfirm = async (config) => {
     setIsExporting(true);
     try {
-      const dataToExport = getExportData();
+      // Use scope from config if provided, otherwise use current exportScope
+      const scopeToUse = config.exportScope || exportScope;
+      let dataToExport = [];
+      if (scopeToUse === "selected") {
+        dataToExport = filteredAppointments.filter(apt => selectedRows.has(apt.id));
+      } else if (scopeToUse === "filtered") {
+        dataToExport = filteredAppointments;
+      } else {
+        dataToExport = appointments; // All records
+      }
       
       // Filter by date range if provided
       let filteredData = dataToExport;
@@ -167,33 +168,56 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
       // Filter columns
       const selectedColumns = exportColumns.filter(col => config.columns.includes(col.key));
       
-      // Prepare data with formatted values
+      // Prepare data with formatted values matching PDF format
       const formattedData = filteredData.map(apt => {
         const row = {};
+        // Ensure all required fields are initialized
         selectedColumns.forEach(col => {
           switch (col.key) {
-            case "date":
-              row[col.key] = formatDateForExport(apt.date);
+            case "patientName":
+              // Ensure customer name is always present
+              const customerName = apt.patientName || apt.user?.name || "Unknown";
+              row[col.key] = customerName && customerName.trim() !== "" ? customerName : "Unknown";
               break;
-            case "createdDate":
-              row[col.key] = apt.createdAt ? formatDateForExport(apt.createdAt) : "N/A";
+            case "phone":
+              row[col.key] = apt.phone || "N/A";
               break;
             case "email":
               row[col.key] = apt.email || "N/A";
               break;
-            case "assignedAgent":
-              row[col.key] = apt.assignedAgent || "N/A";
+            case "service":
+              row[col.key] = apt.service || "N/A";
               break;
+            // case "status":
+            //   // Format appointment status with proper capitalization from table
+            //   const status = apt.status || "pending";
+            //   if (!status || status === "N/A") {
+            //     row[col.key] = "Pending";
+            //   } else {
+            //     // Capitalize first letter and keep rest lowercase
+            //     const formattedStatus = paymentStatus.charAt(0).toUpperCase() + paymentStatus.slice(1).toLowerCase();
+            //     row[col.key] = formattedStatus;
+            //   }
+            //   break;
             case "paymentStatus":
-              row[col.key] = apt.paymentStatus || "N/A";
-              break;
-            case "status":
-              row[col.key] = apt.status.charAt(0).toUpperCase() + apt.status.slice(1);
+              // Always set payment status to "Pending" for all appointments
+              row[col.key] = apt.status;
               break;
             default:
               row[col.key] = apt[col.key] || "N/A";
           }
         });
+        // Ensure patientName and paymentStatus are always present in the row if their columns are selected
+        if (selectedColumns.some(col => col.key === "patientName") && !row.patientName) {
+          const customerName = apt.patientName || apt.user?.name || "Unknown";
+          row.patientName = customerName && customerName.trim() !== "" ? customerName : "Unknown";
+        }
+        if (selectedColumns.some(col => col.key === "paymentStatus") && !row.paymentStatus) {
+          // Show actual payment status from the data
+          const paymentStatus = apt.paymentStatus || apt.paymentstatus || "Pending";
+          const formattedStatus = paymentStatus.charAt(0).toUpperCase() + paymentStatus.slice(1).toLowerCase();
+          row.paymentStatus = formattedStatus;
+        }
         return row;
       });
 
@@ -205,10 +229,6 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
       } else if (config.format === "pdf") {
         const summaryData = config.includeSummary ? {
           "Total Appointments": formattedData.length,
-          "Confirmed": formattedData.filter(d => d.status === "Confirmed").length,
-          "Pending": formattedData.filter(d => d.status === "Pending").length,
-          "Completed": formattedData.filter(d => d.status === "Completed").length,
-          "Cancelled": formattedData.filter(d => d.status === "Cancelled").length,
         } : null;
 
         exportToPDF(
@@ -229,7 +249,6 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
 
       setShowExportModal(false);
     } catch (error) {
-      console.error("Export error:", error);
       toast.error("Export failed", {
         description: error.message || "An error occurred while exporting data",
       });
@@ -245,10 +264,6 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
           <div className="flex items-center justify-between">
             <CardTitle className="dark:text-white">Recent Appointments</CardTitle>
             <div className="flex items-center gap-2">
-              <Button onClick={() => setIsCreateDialogOpen(true)} className="gap-2 dark:bg-gray-700 dark:hover:bg-gray-600">
-                <Plus className="w-4 h-4" />
-                Add Appointment
-              </Button>
               <ExportDropdown
                 onExport={handleExport}
                 disabled={filteredAppointments.length === 0}
@@ -297,10 +312,10 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
             <TableHeader>
               <TableRow className="dark:border-gray-700">
                 <TableHead className="w-12">
-                  <Checkbox
-                    checked={selectedRows.size === filteredAppointments.length && filteredAppointments.length > 0}
-                    onCheckedChange={handleSelectAll}
-                  />
+                    <Checkbox
+                      checked={paginatedAppointments.length > 0 && paginatedAppointments.every(apt => selectedRows.has(apt.id))}
+                      onCheckedChange={handleSelectAll}
+                    />
                 </TableHead>
                 <TableHead className="dark:text-gray-300 whitespace-nowrap">ID</TableHead>
                 <TableHead className="dark:text-gray-300 whitespace-nowrap">Patient Name</TableHead>
@@ -308,18 +323,19 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
                 <TableHead className="dark:text-gray-300 whitespace-nowrap">Time</TableHead>
                 <TableHead className="dark:text-gray-300 whitespace-nowrap">Service</TableHead>
                 <TableHead className="dark:text-gray-300 whitespace-nowrap">Status</TableHead>
+                <TableHead className="dark:text-gray-300 whitespace-nowrap">Payment Status</TableHead>
                 <TableHead className="dark:text-gray-300 whitespace-nowrap">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredAppointments.length === 0 ? (
                 <TableRow className="dark:border-gray-700">
-                  <TableCell colSpan={8} className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <TableCell colSpan={9} className="text-center py-8 text-gray-500 dark:text-gray-400">
                     No appointments found
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredAppointments.map((appointment) => (
+                paginatedAppointments.map((appointment) => (
                   <TableRow key={appointment.id} className="dark:border-gray-700">
                     <TableCell>
                       <Checkbox
@@ -332,6 +348,12 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
                     <TableCell className="dark:text-gray-300 whitespace-nowrap">{new Date(appointment.date).toLocaleDateString()}</TableCell>
                     <TableCell className="dark:text-gray-300 whitespace-nowrap">{appointment.time}</TableCell>
                     <TableCell className="dark:text-gray-300 whitespace-nowrap">{appointment.service}</TableCell>
+                    <TableCell className="dark:text-gray-300 whitespace-nowrap">{appointment.status}</TableCell>
+                    <TableCell className="dark:text-gray-300 whitespace-nowrap">
+                      {appointment.paymentStatus ? 
+                        appointment.paymentStatus.charAt(0).toUpperCase() + appointment.paymentStatus.slice(1).toLowerCase() 
+                        : "Pending"}
+                    </TableCell>
                     <TableCell>
                       <Select
                         value={appointment.status}
@@ -359,6 +381,86 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
             </TableBody>
           </Table>
         </div>
+        
+        {/* Pagination Controls */}
+        {filteredAppointments.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Show</span>
+              <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(parseInt(value))}>
+                <SelectTrigger className="w-[80px] h-8 dark:bg-gray-900 dark:border-gray-700 dark:text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="dark:bg-gray-900 dark:border-gray-700">
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="15">15</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-sm text-gray-600 dark:text-gray-400">entries</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Showing {startIndex + 1} to {Math.min(endIndex, filteredAppointments.length)} of {filteredAppointments.length} entries
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-8 h-8 p-0 ${
+                        currentPage === pageNum 
+                          ? "dark:bg-blue-600 dark:text-white" 
+                          : "dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+                      }`}
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
 
       {/* Export Configuration Modal */}
@@ -372,6 +474,10 @@ export function AppointmentsTable({ appointments, onStatusUpdate, onAppointmentC
         showDateRange={true}
         showColumnSelection={true}
         showSummaryOption={true}
+        showScopeSelection={true}
+        defaultScope={exportScope}
+        hasSelectedRows={selectedRows.size > 0}
+        hasFilters={searchQuery || statusFilter !== "all"}
       />
     </Card>
   );

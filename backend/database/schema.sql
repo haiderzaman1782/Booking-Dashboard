@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS calls (
   callerName VARCHAR(255),
   phoneNumber VARCHAR(50),
   callType VARCHAR(50) CHECK (callType IN ('incoming', 'outgoing')),
-  status VARCHAR(50) NOT NULL CHECK (status IN ('completed', 'missed', 'bounced')),
+  status VARCHAR(50) NOT NULL CHECK (status IN ('completed', 'missed', 'bounced', 'active')),
   duration VARCHAR(20),
   timestamp TIMESTAMP NOT NULL,
   purpose TEXT,

@@ -20,7 +20,6 @@ export const getAllCalls = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error fetching calls:', error);
     res.status(500).json({ error: 'Failed to fetch calls' });
   }
 };
@@ -36,7 +35,6 @@ export const getCallById = async (req, res) => {
 
     res.json(call);
   } catch (error) {
-    console.error('Error fetching call:', error);
     res.status(500).json({ error: 'Failed to fetch call' });
   }
 };
@@ -78,7 +76,6 @@ export const createCall = async (req, res) => {
 
     res.status(201).json(call);
   } catch (error) {
-    console.error('Error creating call:', error);
     res.status(500).json({ error: 'Failed to create call' });
   }
 };
@@ -101,7 +98,6 @@ export const updateCall = async (req, res) => {
 
     res.json(call);
   } catch (error) {
-    console.error('Error updating call:', error);
     res.status(500).json({ error: 'Failed to update call' });
   }
 };
@@ -117,7 +113,6 @@ export const deleteCall = async (req, res) => {
 
     res.json({ message: 'Call deleted successfully', call });
   } catch (error) {
-    console.error('Error deleting call:', error);
     res.status(500).json({ error: 'Failed to delete call' });
   }
 };

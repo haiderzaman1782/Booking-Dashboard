@@ -1,4 +1,4 @@
-import { LayoutDashboard, Calendar, PhoneCall, CreditCard, Users, Settings } from "lucide-react";
+import { LayoutDashboard, Calendar, PhoneCall, CreditCard, Users, Settings, Shield } from "lucide-react";
 import { cn } from "./ui/utils.js";
 
 const menuItems = [
@@ -7,6 +7,7 @@ const menuItems = [
   { id: "calls", label: "Calls", icon: PhoneCall },
   { id: "payments", label: "Payments", icon: CreditCard },
   { id: "users", label: "Users", icon: Users },
+  { id: "admin", label: "Admin Portal", icon: Shield },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 

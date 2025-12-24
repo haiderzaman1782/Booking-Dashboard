@@ -30,7 +30,7 @@ export const appointmentsService = {
       assignedAgent: appointmentData.assignedAgent,
       status: appointmentData.status || 'pending',
       paymentStatus: appointmentData.paymentStatus || 'pending',
-      userId: appointmentData.userId,
+      userId: appointmentData.userId || null,
     });
     return transformAppointment(response.data);
   },

@@ -73,7 +73,7 @@ export const exportToPDF = async (data, columns, options = {}) => {
       await import("jspdf-autotable");
       autoTableAvailable = true;
     } catch (e) {
-      console.warn("jspdf-autotable not available, using basic table generation", e);
+      // jspdf-autotable not available, using basic table generation
     }
     
     // Then import jsPDF
@@ -108,7 +108,7 @@ export const exportToPDF = async (data, columns, options = {}) => {
       doc.addImage(companyLogo, "PNG", 14, yPosition, 30, 10);
       yPosition += 15;
     } catch (error) {
-      console.warn("Could not add logo to PDF:", error);
+      // Could not add logo to PDF
     }
   }
 
@@ -155,14 +155,17 @@ export const exportToPDF = async (data, columns, options = {}) => {
         fontSize: 9,
         cellPadding: 3,
         overflow: "linebreak",
+        halign: "center", // Center-align all cell content
       },
       headStyles: {
         fillColor: [59, 130, 246], // Blue color
         textColor: [255, 255, 255],
         fontStyle: "bold",
+        halign: "center", // Center-align header text
       },
       alternateRowStyles: {
         fillColor: [245, 247, 250],
+        halign: "center", // Center-align alternate rows
       },
       margin: { top: yPosition, left: 14, right: 14 },
       didDrawPage: (data) => {
@@ -185,7 +188,8 @@ export const exportToPDF = async (data, columns, options = {}) => {
     const colWidth = (doc.internal.pageSize.getWidth() - 28) / tableHeaders.length;
     let xPos = 14;
     tableHeaders.forEach((header, index) => {
-      doc.text(header, xPos, yPosition);
+      const cellCenterX = xPos + colWidth / 2;
+      doc.text(header, cellCenterX, yPosition, { align: "center" });
       xPos += colWidth;
     });
     yPosition += 6;
@@ -198,7 +202,8 @@ export const exportToPDF = async (data, columns, options = {}) => {
       }
       xPos = 14;
       row.forEach((cell, colIndex) => {
-        doc.text(String(cell).substring(0, 20), xPos, yPosition);
+        const cellCenterX = xPos + colWidth / 2;
+        doc.text(String(cell).substring(0, 20), cellCenterX, yPosition, { align: "center" });
         xPos += colWidth;
       });
       yPosition += 6;
@@ -250,5 +255,117 @@ export const formatDateTimeForExport = (dateString) => {
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+
+/**
+ * Format date and time combined for PDF export (MM/DD/YYYY HH:MM AM/PM)
+ */
+export const formatDateTimeCombined = (dateString, timeString) => {
+  if (!dateString) return "N/A";
+  
+  try {
+    // Parse the date
+    const date = new Date(dateString);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    // Parse the time string (could be "HH:MM", "HH:MM AM/PM", "HH:MM:SS", etc.)
+    let hours = 0;
+    let minutes = 0;
+    let ampm = '';
+    
+    if (timeString) {
+      // Handle time formats like "14:30", "2:30 PM", "14:30:00", etc.
+      const timeMatch = timeString.match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?/i);
+      if (timeMatch) {
+        let parsedHours = parseInt(timeMatch[1], 10);
+        minutes = parseInt(timeMatch[2], 10);
+        ampm = timeMatch[3] ? timeMatch[3].toUpperCase() : '';
+        
+        // If AM/PM is specified, use it directly
+        if (ampm) {
+          if (ampm === 'AM') {
+            if (parsedHours === 12) {
+              hours = 0;
+            } else {
+              hours = parsedHours;
+            }
+            ampm = 'AM';
+          } else { // PM
+            if (parsedHours === 12) {
+              hours = 12;
+            } else {
+              hours = parsedHours;
+            }
+            ampm = 'PM';
+          }
+        } else {
+          // No AM/PM specified, assume 24-hour format and convert to 12-hour
+          if (parsedHours === 0) {
+            hours = 12;
+            ampm = 'AM';
+          } else if (parsedHours < 12) {
+            hours = parsedHours;
+            ampm = 'AM';
+          } else if (parsedHours === 12) {
+            hours = 12;
+            ampm = 'PM';
+          } else {
+            hours = parsedHours - 12;
+            ampm = 'PM';
+          }
+        }
+      } else {
+        // Try to parse as just hours:minutes
+        const parts = timeString.split(':');
+        if (parts.length >= 2) {
+          const parsedHours = parseInt(parts[0], 10);
+          minutes = parseInt(parts[1], 10);
+          
+          // Convert to 12-hour format
+          if (parsedHours === 0) {
+            hours = 12;
+            ampm = 'AM';
+          } else if (parsedHours < 12) {
+            hours = parsedHours;
+            ampm = 'AM';
+          } else if (parsedHours === 12) {
+            hours = 12;
+            ampm = 'PM';
+          } else {
+            hours = parsedHours - 12;
+            ampm = 'PM';
+          }
+        }
+      }
+    } else {
+      // Use time from date object if no time string provided
+      const dateHours = date.getHours();
+      minutes = date.getMinutes();
+      
+      // Convert to 12-hour format
+      if (dateHours === 0) {
+        hours = 12;
+        ampm = 'AM';
+      } else if (dateHours < 12) {
+        hours = dateHours;
+        ampm = 'AM';
+      } else if (dateHours === 12) {
+        hours = 12;
+        ampm = 'PM';
+      } else {
+        hours = dateHours - 12;
+        ampm = 'PM';
+      }
+    }
+    
+    const formattedHours = String(hours).padStart(2, '0');
+    const formattedMinutes = String(minutes).padStart(2, '0');
+    
+    return `${month}/${day}/${year} ${formattedHours}:${formattedMinutes} ${ampm}`;
+  } catch (error) {
+    return "N/A";
+  }
 };
 

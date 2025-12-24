@@ -17,33 +17,28 @@ export const callsService = {
 
   create: async (callData) => {
     const response = await api.post('/calls', {
-      callerName: callData.callername,
-      phoneNumber: callData.phonenumber,
+      callerName: callData.callerName,
+      phoneNumber: callData.phoneNumber,
       callType: callData.callType,
       status: callData.status || 'completed',
       duration: callData.duration,
       timestamp: callData.timestamp || new Date().toISOString(),
       purpose: callData.purpose,
       notes: callData.notes,
+      userId: callData.userId || null,
     });
     return transformCall(response.data);
   },
 
   getLiveCalls: async () => {
-    // Get recent completed calls as "live" calls
+    // Get active calls for live voice call table
     const response = await api.get('/calls', {
       params: {
-        status: 'completed',
-        limit: 10,
+        status: 'active',
+        limit: 100,
       },
     });
-    return (response.data.calls || [])
-      .filter(call => {
-        const callTime = new Date(call.callStartTime);
-        const oneHourAgo = new Date(Date.now() - 3600000);
-        return callTime > oneHourAgo;
-      })
-      .map(transformLiveCall);
+    return (response.data.calls || []).map(transformLiveCall);
   },
 };
 

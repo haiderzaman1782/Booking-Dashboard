@@ -57,7 +57,7 @@ export function PaymentStatus({ payments = [] }) {
         </div>
 
         {/* Payment Progress */}
-        <div className="space-y-2">
+        <div className="space-y-2 pb-5">
           <div className="flex justify-between text-sm">
             <span className="text-gray-600 dark:text-gray-400">Collection Rate</span>
             <span className="font-semibold text-gray-900 dark:text-white">{paidPercentage.toFixed(1)}%</span>
@@ -70,7 +70,7 @@ export function PaymentStatus({ payments = [] }) {
           {stats.map((stat) => {
             const Icon = stat.icon;
             return (
-              <div key={stat.label} className={`flex items-center justify-between p-2 sm:p-3 rounded-lg ${stat.bgColor}`}>
+              <div key={stat.label} className={`flex items-center justify-between space-y-5 p-2 sm:p-3 rounded-lg ${stat.bgColor}`}>
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                   <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${stat.color} flex-shrink-0`} />
                   <div className="min-w-0">
