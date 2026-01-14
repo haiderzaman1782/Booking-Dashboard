@@ -22,6 +22,7 @@ import { usersService } from "../services/usersService";
 import { appointmentsService } from "../services/appointmentsService";
 import { paymentsService } from "../services/paymentsService";
 import { callsService } from "../services/callsService";
+import { ImageCropper } from "./ImageCropper.jsx";
 
 export function AdminPortal({ users, appointments, onRecordCreated, onLogout }) {
   const [activeTab, setActiveTab] = useState("users");
@@ -39,6 +40,10 @@ export function AdminPortal({ users, appointments, onRecordCreated, onLogout }) 
     avatarPreview: null,
   });
   const fileInputRef = React.useRef(null);
+  
+  // Image cropper state
+  const [isCropperOpen, setIsCropperOpen] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState(null);
 
   // Appointment form state
   const [newAppointment, setNewAppointment] = useState({
@@ -154,14 +159,26 @@ export function AdminPortal({ users, appointments, onRecordCreated, onLogout }) 
         return;
       }
       
-      const previewUrl = URL.createObjectURL(file);
-      setNewUser({
-        ...newUser,
-        avatar: file,
-        avatarPreview: previewUrl,
-      });
-      toast.success("Avatar selected successfully");
+      // Open cropper dialog instead of directly setting
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setImageToCrop(event.target.result);
+        setIsCropperOpen(true);
+      };
+      reader.readAsDataURL(file);
     }
+  };
+
+  // Handle cropped image
+  const handleCropComplete = (croppedFile) => {
+    const previewUrl = URL.createObjectURL(croppedFile);
+    setNewUser({
+      ...newUser,
+      avatar: croppedFile,
+      avatarPreview: previewUrl,
+    });
+    setImageToCrop(null);
+    toast.success("Avatar cropped and ready");
   };
 
   // Handle create user
@@ -868,6 +885,22 @@ export function AdminPortal({ users, appointments, onRecordCreated, onLogout }) 
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Image Cropper Dialog */}
+      <ImageCropper
+        imageSrc={imageToCrop}
+        isOpen={isCropperOpen}
+        onClose={() => {
+          setIsCropperOpen(false);
+          setImageToCrop(null);
+          if (fileInputRef.current) {
+            fileInputRef.current.value = ''; // Reset file input
+          }
+        }}
+        onCropComplete={handleCropComplete}
+        aspect={1}
+        cropShape="round"
+      />
     </div>
   );
 }

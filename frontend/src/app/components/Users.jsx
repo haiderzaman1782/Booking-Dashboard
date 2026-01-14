@@ -232,10 +232,6 @@ export function Users({ users, appointments, payments, callLogs }) {
           duration: 3000,
         }
       );
-      // Refresh data from parent
-      if (window.location) {
-        window.location.reload();
-      }
     } catch (error) {
       toast.error("Failed to update user status");
     }
@@ -258,10 +254,6 @@ export function Users({ users, appointments, payments, callLogs }) {
         });
         setIsDeleteDialogOpen(false);
         setUserToDelete(null);
-        // Refresh data from parent
-        if (window.location) {
-          window.location.reload();
-        }
       } catch (error) {
         toast.error("Failed to delete user");
       }
@@ -1421,10 +1413,6 @@ export function Users({ users, appointments, payments, callLogs }) {
                   }
                   setEditAvatarPreview(null);
                   setEditAvatarFile(null);
-                  // Refresh data from parent
-                  if (window.location) {
-                    window.location.reload();
-                  }
                 } catch (error) {
                   toast.error("Failed to update user");
                 }
